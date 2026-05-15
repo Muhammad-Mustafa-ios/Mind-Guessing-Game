@@ -4,61 +4,69 @@
 #include <cstdlib>
 #include <windows.h>
 #include <string>
+#include <fstream>
 
 using namespace std;
 
 // ================= BASE CLASS =================
-class Game
-{
+class Game {
 protected:
     string playerName;
     int gamesPlayed;
 
     void setColor(int);
     void clearScreen();
-    void slowPrint(string, int = 20);
-    char getChoice();
-    void exitIfNo();
+    void slowPrint(string, int = 15);
+    int menuChoice(int, int);
+    void pauseScreen();
     void loadingBar(string);
 
 public:
-    Game();                // Constructor
-    virtual void run() = 0;  // Pure Virtual Function (Polymorphism)
+    Game();
+    virtual void run() = 0;
 };
 
 // ================= DERIVED CLASS =================
-class MindGame : public Game
-{
+class MindGame : public Game {
+
 private:
+    string password;
+
     void title();
     void rules();
     int playRound();
     void showPrize(int);
     void showScore();
 
+    // Login System
+    bool signUp();
+    bool signIn();
+
+    // File Handling
+    void loadPlayerData();
+    void savePlayerData();
+    void writeSessionLog(int);
+
 public:
-    void run();   // Override Base Class Function
+    void run();
 };
 
 // ================= BASE CLASS DEFINITIONS =================
 
-Game::Game()
-{
+Game::Game() {
     gamesPlayed = 0;
 }
 
-void Game::setColor(int c)
-{
+void Game::setColor(int c) {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), c);
 }
 
-void Game::clearScreen()
-{
+void Game::clearScreen() {
     system("cls");
 }
 
-void Game::slowPrint(string text, int delay)
-{
+void Game::slowPrint(string text, int delay) {
+
     for (char c : text)
     {
         cout << c;
@@ -66,97 +74,303 @@ void Game::slowPrint(string text, int delay)
     }
 }
 
-char Game::getChoice()
-{
-    cout << " (Y/N): ";
-    char c = _getch();
-    cout << c << endl;
+void Game::pauseScreen() {
 
-    if (c == 'Y' || c == 'y') return 'Y';
-    if (c == 'N' || c == 'n') return 'N';
-
-    cout << "Invalid input!\n";
-    return getChoice();
+    setColor(8);
+    cout << "\nPress any key to continue...";
+    _getch();
+    setColor(7);
 }
 
-void Game::exitIfNo()
-{
-    if (getChoice() == 'N')
+int Game::menuChoice(int start, int end) {
+
+    int choice;
+
+    cout << "\nEnter Choice: ";
+    cin >> choice;
+
+    while (cin.fail() || choice < start || choice > end)
     {
-        slowPrint("\nThank you for playing!\n");
-        exit(0);
+        cin.clear();
+        cin.ignore(1000, '\n');
+
+        setColor(12);
+        cout << "Invalid Choice! Try Again: ";
+        setColor(7);
+
+        cin >> choice;
     }
+
+    cin.ignore();
+
+    return choice;
 }
 
-void Game::loadingBar(string msg)
-{
+void Game::loadingBar(string msg) {
+
     slowPrint(msg + "\n", 10);
+
     cout << "[";
-    for (int i = 0; i < 25; i++)
+
+    for (int i = 0; i < 30; i++)
     {
-        cout << "#";
-        Sleep(60);
+        cout << char(219);
+        Sleep(40);
     }
-    cout << "]\n\n";
+
+    cout << "]\n";
 }
 
-// ================= DERIVED CLASS DEFINITIONS =================
+// ================= LOGIN SYSTEM =================
 
-void MindGame::title()
-{
+bool MindGame::signUp() {
+
+    clearScreen();
+    title();
+
     setColor(11);
-    cout << "=============================================\n";
-    cout << "           MIND GUESSING GAME PLUS           \n";
-    cout << "=============================================\n";
+    cout << "\n============== SIGN UP ==============\n\n";
+    setColor(7);
+
+    cout << "Create Username : ";
+    getline(cin, playerName);
+
+    cout << "Create Password : ";
+    getline(cin, password);
+
+    ofstream file("players.txt");
+
+    if (file.is_open())
+    {
+        file << playerName << endl;
+        file << password << endl;
+        file << gamesPlayed << endl;
+
+        file.close();
+
+        setColor(10);
+        cout << "\nAccount Created Successfully!\n";
+        setColor(7);
+
+        pauseScreen();
+        return true;
+    }
+
+    return false;
+}
+
+bool MindGame::signIn() {
+
+    clearScreen();
+    title();
+
+    string user, pass;
+    string storedUser, storedPass;
+
+    setColor(11);
+    cout << "\n============== SIGN IN ==============\n\n";
+    setColor(7);
+
+    cout << "Username : ";
+    getline(cin, user);
+
+    cout << "Password : ";
+    getline(cin, pass);
+
+    ifstream file("players.txt");
+
+    if (file.is_open())
+    {
+        getline(file, storedUser);
+        getline(file, storedPass);
+        file >> gamesPlayed;
+
+        file.close();
+
+        if (user == storedUser && pass == storedPass)
+        {
+            playerName = user;
+
+            setColor(10);
+            cout << "\nLogin Successful!\n";
+            setColor(7);
+
+            pauseScreen();
+            return true;
+        }
+    }
+
+    setColor(12);
+    cout << "\nInvalid Username or Password!\n";
+    setColor(7);
+
+    pauseScreen();
+    return false;
+}
+
+// ================= FILE HANDLING =================
+
+void MindGame::loadPlayerData() {
+
+    ifstream file("players.txt");
+
+    if (file.is_open())
+    {
+        getline(file, playerName);
+        getline(file, password);
+        file >> gamesPlayed;
+
+        file.close();
+    }
+}
+
+void MindGame::savePlayerData() {
+
+    ofstream file("players.txt");
+
+    if (file.is_open())
+    {
+        file << playerName << endl;
+        file << password << endl;
+        file << gamesPlayed << endl;
+
+        file.close();
+    }
+}
+
+void MindGame::writeSessionLog(int result) {
+
+    ofstream logFile("session_log.txt", ios::app);
+
+    if (logFile.is_open())
+    {
+        time_t now = time(nullptr);
+
+        // Buffer large enough for ctime output (26 chars including newline and null)
+        char timeBuf[26] = { 0 };
+        bool time_ok = false;
+
+#if defined(_MSC_VER)
+        // MSVC: use ctime_s
+        if (ctime_s(timeBuf, sizeof(timeBuf), &now) == 0)
+        {
+            time_ok = true;
+        }
+#else
+        // POSIX: use ctime_r
+        if (ctime_r(&now, timeBuf) != nullptr)
+        {
+            time_ok = true;
+        }
+#endif
+
+        logFile << "Player Name : " << playerName << endl;
+        logFile << "Games Played: " << gamesPlayed << endl;
+        logFile << "Magic Number: " << result << endl;
+
+        if (time_ok)
+        {
+            // ctime output already contains a trailing newline
+            logFile << "Session Time: " << timeBuf;
+        }
+        else
+        {
+            logFile << "Session Time: Unknown\n";
+        }
+
+        logFile << "----------------------------------\n";
+
+        logFile.close();
+    }
+}
+
+// ================= GAME FUNCTIONS =================
+
+void MindGame::title() {
+
+    setColor(11);
+
+    cout << "====================================================\n";
+    cout << "               MIND GUESSING GAME PLUS              \n";
+    cout << "====================================================\n";
+
     setColor(7);
 }
 
-void MindGame::rules()
-{
+void MindGame::rules() {
+
+    clearScreen();
+
+    title();
+
+    setColor(14);
+
+    cout << "\n================== GAME RULES ==================\n\n";
+
     setColor(10);
-    cout << "\n=========== GAME RULES ===========\n";
-    cout << "1. Think of a number (1-9)\n";
-    cout << "2. Follow instructions\n";
-    cout << "3. Magic reveals final number\n";
-    cout << "=================================\n\n";
+
+    cout << "1. Think of ANY number from 1 to 9.\n\n";
+    cout << "2. Follow all instructions carefully.\n\n";
+    cout << "3. Perform calculations in your mind.\n\n";
+    cout << "4. At the end, game will guess your answer.\n\n";
+    cout << "5. You will also receive a mystery prize.\n\n";
+
+    setColor(14);
+
+    cout << "================================================\n";
+
     setColor(7);
+
+    pauseScreen();
 }
 
-int MindGame::playRound()
-{
+int MindGame::playRound() {
+
+    clearScreen();
+
+    title();
+
     int num = (rand() % 10 + 1) * 2;
 
-    slowPrint("Think of a Number (1 to 9)\n");
-    exitIfNo();
+    setColor(11);
 
-    slowPrint("Add same number again.\n");
-    exitIfNo();
+    slowPrint("\nStep 1 -> Think of a number from 1 to 9\n");
+    pauseScreen();
 
-    slowPrint("Now add my number: " + to_string(num) + "\n");
-    exitIfNo();
+    slowPrint("\nStep 2 -> Add the same number of your Friend\n");
+    pauseScreen();
 
-    slowPrint("Donate half to charity.\n");
-    exitIfNo();
+    slowPrint("\nStep 3 -> Add my number: " + to_string(num) + "\n");
+    pauseScreen();
 
-    slowPrint("Return number to friend.\n");
+    slowPrint("\nStep 4 -> Divide total by 2\n");
+    pauseScreen();
+
+    slowPrint("\nStep 5 -> Subtract your Friends number\n");
+    pauseScreen();
 
     num = num / 2;
 
-    slowPrint("You are left with: ");
     setColor(10);
+
+    slowPrint("\nYour Final Number Is : ");
     cout << num << endl;
+
     setColor(7);
 
     return num;
 }
 
-void MindGame::showPrize(int value)
-{
-    slowPrint("\nSpinning prize wheel...\n");
-    loadingBar("Please wait");
+void MindGame::showPrize(int value) {
+
+    cout << endl;
+
+    loadingBar("Spinning Prize Wheel...");
 
     setColor(14);
-    cout << "Your Prize:\n";
+
+    cout << "\n============= YOUR PRIZE =============\n\n";
+
     setColor(10);
 
     switch (value)
@@ -171,68 +385,135 @@ void MindGame::showPrize(int value)
     case 8:  cout << "Burger\n"; break;
     case 9:  cout << "Candy\n"; break;
     case 10: cout << "Mystery Gift\n"; break;
-    default: cout << "Better luck next time!\n";
+
+    default:
+        cout << "Better Luck Next Time!\n";
     }
 
+    setColor(14);
+
+    cout << "\n======================================\n";
+
     setColor(7);
 }
 
-void MindGame::showScore()
-{
+void MindGame::showScore() {
+
     setColor(11);
-    cout << "\n================ SCOREBOARD ================\n";
-    cout << "Games Played: " << gamesPlayed << endl;
-    cout << "============================================\n";
+
+    cout << "\n================ SCOREBOARD ================\n\n";
+
+    setColor(10);
+
+    cout << "Player Name  : " << playerName << endl;
+    cout << "Games Played : " << gamesPlayed << endl;
+
+    setColor(11);
+
+    cout << "\n============================================\n";
+
     setColor(7);
 }
 
-void MindGame::run()
-{
+// ================= MAIN GAME LOOP =================
+
+void MindGame::run() {
+
     srand(time(0));
 
-    clearScreen();
-    title();
+    int choice;
+
+    while (true)
+    {
+        clearScreen();
+
+        title();
+
+        setColor(14);
+
+        cout << "\n================ MAIN MENU ================\n\n";
+
+        setColor(10);
+
+        cout << "1. Sign Up\n";
+        cout << "2. Sign In\n";
+        cout << "3. Exit\n";
+
+        setColor(14);
+
+        cout << "\n===========================================\n";
+
+        setColor(7);
+
+        choice = menuChoice(1, 3);
+
+        if (choice == 1)
+        {
+            signUp();
+        }
+
+        else if (choice == 2)
+        {
+            if (signIn())
+                break;
+        }
+
+        else
+        {
+            slowPrint("\nThank You For Playing!\n");
+            return;
+        }
+    }
+
     rules();
-
-    slowPrint("Enter your name: ");
-    setColor(9);
-    getline(cin, playerName);
-    setColor(7);
-
-    slowPrint("\nWelcome " + playerName + "!\n");
 
     char again = 'Y';
 
-    while (again == 'Y')
+    while (again == 'Y' || again == 'y')
     {
-        clearScreen();
-        title();
         gamesPlayed++;
 
         int result = playRound();
 
-        slowPrint("\nCheck your prize?");
-        exitIfNo();
-
         showPrize(result);
 
-        cout << "\nPlay again?";
-        again = getChoice();
+        savePlayerData();
+        writeSessionLog(result);
 
-        clearScreen();
+        setColor(11);
+
+        cout << "\n\n1. Play Again\n";
+        cout << "2. Exit Game\n";
+
+        setColor(7);
+
+        int option = menuChoice(1, 2);
+
+        if (option == 1)
+            again = 'Y';
+        else
+            again = 'N';
     }
 
+    clearScreen();
+
     title();
-    slowPrint("\nThanks for playing, " + playerName + "!\n");
+
     showScore();
-    slowPrint("Goodbye!\n");
+
+    slowPrint("\nThanks For Playing, " + playerName + "!\n");
+
+    pauseScreen();
 }
 
-// ================= MAIN =================
-int main()
-{
-    Game* game = new MindGame();  // Polymorphism
-    game->run();                  // Base pointer calling derived function
+// ================= MAIN FUNCTION =================
+
+int main() {
+
+    Game* game = new MindGame();
+
+    game->run();
+
     delete game;
 
     return 0;
